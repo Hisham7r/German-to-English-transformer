@@ -1,0 +1,14 @@
+dataset:
+  name: bentrevett/multi30k
+  source_lang: de
+  target_lang: en
+
+tokenizer:
+  vocab_size: 8000
+  special_tokens:
+    pad: "<pad>"
+    sos: "<sos>"
+    eos: "<eos>"
+    unk: "<unk>"
+
+# model/training sections will be filled in once those design decisions are made
