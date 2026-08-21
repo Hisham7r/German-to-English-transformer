@@ -14,6 +14,11 @@ ds = load_dataset(config["dataset"]["name"], split="test")
 source_lang = config["dataset"]["source_lang"]
 target_lang = config["dataset"]["target_lang"]
 
+
+# hypotheses = []
+# for example in ds:
+#     hypotheses.append(example[source_lang])
+
 hypotheses = [example[source_lang] for example in ds]
 references = [example[target_lang] for example in ds]
 
