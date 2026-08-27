@@ -17,8 +17,9 @@ class TokenEmbedding(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len):
+    def __init__(self, d_model, max_len, dropout):
         super().__init__()
+        self.dropout = nn.Dropout(dropout)
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len).unsqueeze(1).float()
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
@@ -28,7 +29,8 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x):
         seq_len = x.size(1)
-        return x + self.pe[:, :seq_len, :]
+        x = x + self.pe[:, :seq_len, :]
+        return self.dropout(x)
 
 #------- Test-Block -------#
 # and this block only runs if you execute this file directly, not when you import it as a module.
@@ -42,9 +44,10 @@ if __name__ == "__main__":
     vocab_size = config["tokenizer"]["vocab_size"]
     d_model = config["model"]["d_model"]
     max_len = config["model"]["max_len"]
+    dropout = config["model"]["dropout"]
 
     token_embedding = TokenEmbedding(vocab_size, d_model)
-    positional_encoding = PositionalEncoding(d_model, max_len)
+    positional_encoding = PositionalEncoding(d_model, max_len, dropout)
 
     fake_ids = torch.randint(0, vocab_size, (4, 10))  # batch=4, seq_len=10
 
