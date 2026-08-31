@@ -15,5 +15,6 @@ model:
   d_model: 512
   max_len: 100
   dropout: 0.1
+  num_heads: 8
 
 # training section will be filled in once those design decisions are made
