@@ -17,5 +17,6 @@ model:
   dropout: 0.1
   num_heads: 8
   d_ff: 2048
+  num_layers: 6
 
 # training section will be filled in once those design decisions are made
