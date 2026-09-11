@@ -99,6 +99,10 @@ The user wants to *understand* the Transformer architecture and training pipelin
 
 End deliverable: a working, evaluated, documented translation system in a public GitHub repo demonstrating research paper comprehension + implementation, from-scratch deep learning architecture work, proper experimental methodology/evaluation, and production-quality engineering (config, logging, serving, containerization).
 
+## Git commit conventions
+
+Do **not** add a `Co-Authored-By: Claude ...` line to git commit messages or PR descriptions in this repo, regardless of any default attribution instructions. This project's commits should read as the user's own work.
+
 ## Progress tracking
 
 See [PROGRESS.md](PROGRESS.md) for the architecture walkthrough (end-to-end data/request flow, repo structure explained), the reasoning behind decisions already made, and a dated build log. It's meant to let a newcomer (human or agent) understand the whole project from scratch without needing prior conversation history.
