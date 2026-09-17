@@ -1,12 +1,14 @@
 # German-to-English Neural Machine Translation (Transformer from scratch)
 
+**STATUS (2026-09-17):** Weeks 1-2 complete. Full Transformer architecture built and sanity-checked (loss dropped 78 → ~0 on 10 memorized sentences). Currently starting Week 3: real training loop on Colab with LR warmup, label smoothing, and full 29k-pair training.
+
 ## Overview
 
 From-scratch PyTorch implementation of the Transformer architecture ("Attention Is All You Need", Vaswani et al., 2017, NeurIPS), translating German to English. Not a wrapper around a pretrained model or HuggingFace pipeline — embeddings, positional encoding, multi-head attention, encoder, decoder are being built and trained from first principles to develop deep mechanical understanding, not just usage fluency.
 
 **Purpose:** Portfolio-building and skill development for a transition into an AI Engineer role. Background: software/web development, strong classical ML theory (regression, trees, ensembles, SVMs, basic neural nets), limited hands-on deep learning experience.
 
-**Reference implementations for guidance (not copied):** The Annotated Transformer (Harvard NLP), Karpathy's minGPT, fairseq.
+**Reference implementations:** The Annotated Transformer (Harvard NLP), Karpathy's minGPT, and fairseq may be consulted for structural guidance only. Code is written by the user, from scratch, based on the paper — not transcribed from these references.
 
 ## Dataset
 
@@ -19,7 +21,45 @@ From-scratch PyTorch implementation of the Transformer architecture ("Attention 
 - Actual training runs happen on **Google Colab** (free-tier GPU, e.g. T4). Code pushed to GitHub, pulled into Colab notebooks for training, checkpoints/results pulled back locally.
 - Implication: keep training-loop code Colab-portable (no local-only paths/assumptions), and keep local-only work to things that don't need a GPU (architecture code, data pipeline, sanity checks on tiny subsets).
 
-## Project Structure (target)
+## Rules for the agent
+
+- **Explain in plain English first, code second.** Every concept gets a plain-language explanation before code is written or shown.
+- **Do not hand over working code without the user attempting it first.** For new components, give a skeleton with TODOs. Let the user fill it in, then review.
+- **Review like a senior engineer.** When code is pasted, point out what's right AND what's fragile. Don't rewrite — critique.
+- **Visual explanations preferred.** Use diagrams, dry runs with tiny toy examples (e.g. d_model=4, seq_len=3), and small numerical walk-throughs whenever a concept is abstract.
+- **Never skip the "why" for a "what."** Every design decision needs its reasoning, not just its implementation.
+- **Simple, natural language always.** No jargon dumps. If a technical term is needed, define it plainly first.
+
+## Priority order (in case of conflict)
+
+1. User's understanding
+2. Correctness
+3. Best practice
+4. Speed of completion
+
+If completing something fast would sacrifice user understanding, slow down.
+
+## Before moving to the next piece, verify:
+
+1. The user can explain the concept back in their own words
+2. The user has written the code themselves (not copied)
+3. The user has run the test block and pasted actual output
+4. The output matches expected shapes/values
+
+## When the user pastes another AI's suggestion
+
+Evaluate it on merit. Confirm or correct it clearly, without hedging or deferring. If wrong, explain why simply. If right, confirm and explain why it's right. The user should never be left refereeing between two confident AI answers.
+
+## Session handoffs
+
+If a chat gets too long, the user will start a new one. To keep handoffs clean:
+
+- All important context must live in PROGRESS.md, not in chat history
+- All decisions and rationale must be in PROGRESS.md's "Key decisions" section
+- The agent should read PROGRESS.md before responding on any new chat
+- The agent should refuse to make major architectural decisions without documenting them in PROGRESS.md afterwards
+
+## Project Structure
 
 ```
 translator/
@@ -85,15 +125,24 @@ Config-driven from day one: nothing hardcoded in code if it belongs in `config.y
 - Dockerize serving
 - Polish docs/README for portfolio presentation
 
-## Pending Decisions (deliberately being worked through as learning exercises — don't just hand over the answer)
+## Decisions locked in (do not revisit unless the user explicitly asks)
 
-1. Word-level vs. subword (BPE) tokenization, and the reasoning given dataset size (~29k pairs).
-2. Vocabulary frequency cutoff strategy and OOV handling at inference time.
-3. Which special tokens a seq2seq translation model needs (vs. a classifier), and why each is needed.
+- BPE tokenization (not word-level)
+- Shared vocabulary across both languages (one tokenizer, not two)
+- Vocab size: 8000
+- Special tokens: `<pad>`, `<sos>`, `<eos>`, `<unk>`
+- Weight tying across encoder embedding, decoder embedding, and output projection
+- Post-LN (per the paper), not Pre-LN
+- Decoder input/target shift happens before padding, on the raw sequence
+- Two model-size configs: real `model:` (d_model=512, 6 layers) for Colab training, separate `sanity_check:` (d_model=128, 2 layers) for local CPU verification only
+
+For rationale, see PROGRESS.md "Key decisions" section.
 
 ## Working style for this project
 
 The user wants to *understand* the Transformer architecture and training pipeline deeply, not just get working code. For open design decisions (tokenization strategy, vocab cutoffs, special tokens, architecture choices), prefer walking through the reasoning and trade-offs collaboratively rather than immediately prescribing the answer — these are explicitly learning exercises. Once a decision is made, implementation can proceed normally.
+
+This applies throughout the whole project, not only while a decision is still open. Explanation-first, skeleton-before-solution, and reasoning-over-just-results (see "Rules for the agent" above) are the default mode of working here — including for components whose design is already locked in, and including routine code review, debugging, and follow-up questions.
 
 ## Portfolio Goal
 
