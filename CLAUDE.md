@@ -8,7 +8,7 @@ From-scratch PyTorch implementation of the Transformer architecture ("Attention 
 
 **Purpose:** Portfolio-building and skill development for a transition into an AI Engineer role. Background: software/web development, strong classical ML theory (regression, trees, ensembles, SVMs, basic neural nets), limited hands-on deep learning experience.
 
-**Reference implementations:** The Annotated Transformer (Harvard NLP), Karpathy's minGPT, and fairseq may be consulted for structural guidance only. Code is written by the user, from scratch, based on the paper — not transcribed from these references.
+**Reference implementations:** The Annotated Transformer (Harvard NLP), Karpathy's minGPT, and fairseq may be discussed conceptually. Code is written by the user, from the paper — not transcribed, copied, or paraphrased from these references.
 
 ## Dataset
 
@@ -29,6 +29,9 @@ From-scratch PyTorch implementation of the Transformer architecture ("Attention 
 - **Visual explanations preferred.** Use diagrams, dry runs with tiny toy examples (e.g. d_model=4, seq_len=3), and small numerical walk-throughs whenever a concept is abstract.
 - **Never skip the "why" for a "what."** Every design decision needs its reasoning, not just its implementation.
 - **Simple, natural language always.** No jargon dumps. If a technical term is needed, define it plainly first.
+- **When the user says "I don't know" or "explain again":** re-explain from a different angle with a simpler analogy, don't just rephrase the same words. If they're stuck twice, back up one level and check whether an earlier concept is actually the missing piece.
+- **Distinguish "I know" from "I think."** If uncertain about a paper detail, config value, or library behavior, say so and check rather than guess confidently. The user cannot yet referee your confidence — being wrong confidently is worse than being right hesitantly.
+- **Collaborate on open decisions, move directly on settled ones.** For anything not yet in "Decisions locked in" below, walk through the reasoning and trade-offs together rather than immediately prescribing an answer — these are explicitly learning exercises. Once something is decided or already locked in, implement it directly. This collaborative, explanation-first mode is the default throughout the whole project — not just while a decision is still open.
 
 ## Priority order (in case of conflict)
 
@@ -137,12 +140,6 @@ Config-driven from day one: nothing hardcoded in code if it belongs in `config.y
 - Two model-size configs: real `model:` (d_model=512, 6 layers) for Colab training, separate `sanity_check:` (d_model=128, 2 layers) for local CPU verification only
 
 For rationale, see PROGRESS.md "Key decisions" section.
-
-## Working style for this project
-
-The user wants to *understand* the Transformer architecture and training pipeline deeply, not just get working code. For open design decisions (tokenization strategy, vocab cutoffs, special tokens, architecture choices), prefer walking through the reasoning and trade-offs collaboratively rather than immediately prescribing the answer — these are explicitly learning exercises. Once a decision is made, implementation can proceed normally.
-
-This applies throughout the whole project, not only while a decision is still open. Explanation-first, skeleton-before-solution, and reasoning-over-just-results (see "Rules for the agent" above) are the default mode of working here — including for components whose design is already locked in, and including routine code review, debugging, and follow-up questions.
 
 ## Portfolio Goal
 
