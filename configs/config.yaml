@@ -19,4 +19,14 @@ model:
   d_ff: 2048
   num_layers: 6
 
+# Deliberately tiny model dims, used only by overfit_sanity_check.py.
+# Local CPU dev machine has no GPU — the full-size model above is far too
+# slow to overfit locally in a reasonable time. This exists purely to prove
+# the architecture/training wiring is correct before the real run on Colab.
+sanity_check:
+  d_model: 128
+  num_heads: 4
+  d_ff: 256
+  num_layers: 2
+
 # training section will be filled in once those design decisions are made

@@ -67,10 +67,10 @@ print(f"tgt_target shape: {tgt_target.shape}")
 
 model = Transformer(
     vocab_size = config["tokenizer"]["vocab_size"],
-    d_model    = config["model"]["d_model"],
-    num_heads  = config["model"]["num_heads"],
-    d_ff       = config["model"]["d_ff"],
-    num_layers = config["model"]["num_layers"],
+    d_model    = config["sanity_check"]["d_model"],
+    num_heads  = config["sanity_check"]["num_heads"],
+    d_ff       = config["sanity_check"]["d_ff"],
+    num_layers = config["sanity_check"]["num_layers"],
     max_len    = config["model"]["max_len"],
     dropout    = config["model"]["dropout"],
     pad_id     = PAD_ID,
