@@ -29,4 +29,25 @@ sanity_check:
   d_ff: 256
   num_layers: 2
 
-# training section will be filled in once those design decisions are made
+# Real training run (Colab). Values are provisional starting points, not tuned:
+# warmup_steps is far below the paper's 4000 because the paper's value was
+# chosen for WMT-scale data; with 29k pairs at batch 128 (~227 steps/epoch),
+# 4000 steps would be ~18 epochs of pure warmup.
+training:
+  batch_size: 128
+  num_epochs: 30
+  warmup_steps: 1000
+  label_smoothing: 0.1
+  grad_clip_norm: 1.0
+  adam_betas: [0.9, 0.98]
+  adam_eps: 1.0e-9
+  seed: 42
+
+# `python src/train.py --smoke`: local CPU pipeline check only. Uses the small
+# sanity_check model dims and a tiny data subset; not a real training run.
+smoke_test:
+  train_pairs: 256
+  val_pairs: 64
+  batch_size: 32
+  num_epochs: 15
+  warmup_steps: 100
