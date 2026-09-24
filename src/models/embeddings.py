@@ -10,6 +10,8 @@ class TokenEmbedding(nn.Module):
     def __init__(self, vocab_size, d_model):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, d_model)
+        # The default N(0,1) init times sqrt(d_model) gives std ~23 and huge tied-output logits.
+        nn.init.normal_(self.embedding.weight, mean=0.0, std=d_model ** -0.5)
         self.d_model = d_model
 
     def forward(self, x):
