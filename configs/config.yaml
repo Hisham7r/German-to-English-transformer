@@ -35,8 +35,8 @@ sanity_check:
 # 4000 steps would be ~18 epochs of pure warmup.
 training:
   batch_size: 128
-  num_epochs: 30
-  warmup_steps: 1000
+  num_epochs: 40
+  warmup_steps: 4000
   label_smoothing: 0.1
   grad_clip_norm: 1.0
   adam_betas: [0.9, 0.98]
