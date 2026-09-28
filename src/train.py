@@ -187,8 +187,8 @@ if __name__ == "__main__":
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            # ckpt_dir = ROOT / "experiments" 
-            ckpt_dir = Path("/content/drive/MyDrive/translator_checkpoints") 
+            ckpt_dir = ROOT / "experiments" 
+            # ckpt_dir = Path("/content/drive/MyDrive/translator_checkpoints") 
             ckpt_dir.mkdir(parents=True, exist_ok=True)
             torch.save(
                 {
