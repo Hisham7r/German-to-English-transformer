@@ -69,16 +69,30 @@ if __name__ == "__main__":
     print(f"Loaded checkpoint from epoch {checkpoint['epoch']}, val_loss {checkpoint['best_val_loss']:.4f}")
 
     # Try one real German sentence
-    german_sentence = "Ein Mann in einem blauen Hemd steht auf einer Leiter."
-    src_ids = tokenizer.encode(german_sentence).ids
-    src = torch.tensor([src_ids], dtype=torch.long, device=device)
-    src_mask = (src != PAD_ID).unsqueeze(1)
+    from datasets import load_dataset
 
-    output_ids = greedy_decode(model, src, src_mask, max_len=50, sos_id=SOS_ID, eos_id=EOS_ID, device=device)
+    dataset_name = config["dataset"]["name"]
+    src_lang = config["dataset"]["source_lang"]
+    tgt_lang = config["dataset"]["target_lang"]
 
-    # tokenizer.decode() strips <sos>/<eos>/<pad> by default (confirmed separately) —
-    # no manual trimming of output_ids needed before this call.
-    translation = tokenizer.decode(output_ids)
+    test_set = load_dataset(dataset_name, split="test")
 
-    print(f"German:      {german_sentence}")
-    print(f"Translation: {translation}")
+    NUM_EXAMPLES = 10
+
+    for i in range(NUM_EXAMPLES):
+        german_sentence = test_set[i][src_lang]
+        reference = test_set[i][tgt_lang]
+
+        src_ids = tokenizer.encode(german_sentence).ids
+        src = torch.tensor([src_ids], dtype=torch.long, device=device)
+        src_mask = (src != PAD_ID).unsqueeze(1)
+
+        output_ids = greedy_decode(model, src, src_mask, max_len=50, sos_id=SOS_ID, eos_id=EOS_ID, device=device)
+        translation = tokenizer.decode(output_ids)
+        stopped_early = len(output_ids) < 50
+
+        print(f"\n[{i}]")
+        print(f"German:      {german_sentence}")
+        print(f"Predicted:   {translation}")
+        print(f"Reference:   {reference}")
+        print(f"Hit <eos>:   {stopped_early}")
