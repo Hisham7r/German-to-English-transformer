@@ -39,6 +39,65 @@ def greedy_decode(model, src, src_mask, max_len, sos_id, eos_id, device):
     return tgt.squeeze().tolist()
 
 
+def beam_search_decode(model, src, src_mask, max_len, sos_id, eos_id, device,
+                       beam_size=4, alpha=0.6):
+    """Returns (ids, finished). ids has the same format as greedy_decode:
+    starts with sos, includes eos if it was produced. finished is True
+    if the winning sequence ended with eos."""
+    model.eval()
+    with torch.no_grad():
+        # Encode the source once; every beam reuses this same encoder output.
+        encoder_output = model.encoder(src, src_mask)
+
+        # Each beam is (token ids so far, sum of log-probs). Start with sos only.
+        beams = [([sos_id], 0.0)]
+        finished = []
+
+        for _ in range(max_len):
+            if not beams:
+                break
+
+            # Expand every live beam by its top `beam_size` next tokens.
+            candidates = []
+            for tokens, score in beams:
+                tgt = torch.tensor([tokens], dtype=torch.long, device=device)
+                tgt_mask = generate_causal_mask(tgt.size(1)).to(device)
+
+                decoder_output = model.decoder(tgt, encoder_output, src_mask, tgt_mask)
+                logits = model.output_projection(decoder_output)
+
+                # Newest position only, as log-probabilities (log_softmax, not softmax then log).
+                log_probs = torch.log_softmax(logits[:, -1, :], dim=-1)[0]
+                top_log_probs, top_ids = torch.topk(log_probs, beam_size)
+
+                for log_prob, token_id in zip(top_log_probs.tolist(), top_ids.tolist()):
+                    candidates.append((tokens + [token_id], score + log_prob))
+
+            # Keep the best beam_size candidates overall. Those ending in eos are
+            # finished and stop growing; the rest stay live.
+            candidates.sort(key=lambda c: c[1], reverse=True)
+            beams = []
+            for tokens, score in candidates[:beam_size]:
+                if tokens[-1] == eos_id:
+                    finished.append((tokens, score))
+                else:
+                    beams.append((tokens, score))
+
+        # Prefer finished sequences; fall back to live ones if none finished (hit max_len).
+        pool = finished if finished else beams
+        if not pool:
+            return [sos_id], False
+
+        # Length normalization: divide by generated-token count ** alpha.
+        # The sos is not counted. alpha = 0 means raw score, no normalization.
+        best_tokens, _ = max(
+            pool,
+            key=lambda c: c[1] / (len(c[0]) - 1) ** alpha,
+        )
+
+    return best_tokens, best_tokens[-1] == eos_id
+
+
 # ── Test-Block ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

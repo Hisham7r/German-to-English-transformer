@@ -20,6 +20,7 @@ the model against the new vocab; that would invalidate the current
 trained checkpoint, so it stays separate follow-up work, not done here.
 """
 
+import re
 from collections import Counter
 
 
@@ -65,7 +66,14 @@ def clean_decode(ids, tokenizer, boundary_map, special_ids):
             pieces[-1] += token_str
         else:
             pieces.append(token_str)
-    return " ".join(pieces)
+    return fix_punctuation_spacing(" ".join(pieces))
+
+
+def fix_punctuation_spacing(text):
+    # Punctuation is its own "word" under Whitespace pre-tokenization, so it
+    # gets a space before it ("something ."); strip that back out. Readability
+    # only: sacrebleu normalizes this itself, so BLEU does not change.
+    return re.sub(r"\s+([.,!?;:])", r"\1", text)
 
 
 # ── Test block ───────────────────────────────────────────────────────────────

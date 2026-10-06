@@ -1,4 +1,6 @@
+import argparse
 import sys
+import time
 from pathlib import Path
 
 import sacrebleu
@@ -14,19 +16,29 @@ ROOT = Path(__file__).resolve().parents[1]
 # src/models on sys.path.
 sys.path.insert(0, str(ROOT / "src" / "models"))
 
+from analyze_outputs import has_repeated_ngram, longest_run
 from data.detokenize import build_boundary_map, clean_decode
-from decode import greedy_decode  # reuse the function already built and verified
+from decode import beam_search_decode
 from models.transformer import Transformer
 
-BASELINE_BLEU = 0.48  # src/baseline.py: copy German unchanged, scored on this same test set
+
+def parse_args(decoding_cfg):
+    # Defaults come from config.yaml -> decoding, so the CLI only overrides.
+    parser = argparse.ArgumentParser(description="Decode the test set and score it with sacrebleu.")
+    parser.add_argument("--beam-size", type=int, default=decoding_cfg["beam_size"])
+    parser.add_argument("--alpha", type=float, default=decoding_cfg["length_alpha"])
+    return parser.parse_args()
 
 
 def main():
     with open(ROOT / "configs" / "config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
+    args = parse_args(config["decoding"])
+    beam_size, alpha = args.beam_size, args.alpha
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    print(f"Using device: {device} | beam_size={beam_size} | alpha={alpha}")
 
     tokenizer = Tokenizer.from_file(str(ROOT / "data" / "bpe_tokenizer.json"))
     special = config["tokenizer"]["special_tokens"]
@@ -68,8 +80,10 @@ def main():
 
     hypotheses = []
     references = []
+    ended_without_eos = 0
 
-    print(f"Decoding {len(test_set)} test sentences (one at a time -- this will take a while)...")
+    print(f"Decoding {len(test_set)} test sentences with beam search (one at a time)...")
+    start = time.time()
     for i, example in enumerate(test_set):
         german_sentence = example[src_lang]
         reference = example[tgt_lang]
@@ -78,28 +92,38 @@ def main():
         src = torch.tensor([src_ids], dtype=torch.long, device=device)
         src_mask = (src != PAD_ID).unsqueeze(1)
 
-        output_ids = greedy_decode(
+        output_ids, finished = beam_search_decode(
             model, src, src_mask,
             max_len=config["model"]["max_len"],
             sos_id=SOS_ID, eos_id=EOS_ID, device=device,
+            beam_size=beam_size, alpha=alpha,
         )
+        if not finished:
+            ended_without_eos += 1
+
         translation = clean_decode(output_ids, tokenizer, boundary_map, special_ids)
 
         hypotheses.append(translation)
         references.append(reference)
 
         if (i + 1) % 100 == 0:
-            print(f"  {i + 1}/{len(test_set)}")
+            print(f"  {i + 1}/{len(test_set)}  ({time.time() - start:.0f}s)")
+    elapsed = time.time() - start
 
-    bleu = sacrebleu.corpus_bleu(hypotheses, [references])
+    n = len(hypotheses)
+    hard_loops = sum(longest_run(h.split()) >= 3 for h in hypotheses)
+    repeated_phrases = sum(has_repeated_ngram(h.split(), 3) for h in hypotheses)
 
-    print(f"\nTest set size: {len(test_set)}")
-    print(f"Model BLEU:    {bleu.score:.2f}")
-    print(f"Baseline BLEU: {BASELINE_BLEU:.2f}")
-    print(f"Improvement:   {bleu.score - BASELINE_BLEU:+.2f}")
+    print(f"\nTest set size: {n}")
+    print(sacrebleu.corpus_bleu(hypotheses, [references], force=True))
+    print(f"hard loops (same word 3+ times in a row): {hard_loops} ({100 * hard_loops / n:.1f}%)")
+    print(f"repeated 3-word phrase:                   {repeated_phrases} ({100 * repeated_phrases / n:.1f}%)")
+    print(f"ended without <eos>:                      {ended_without_eos}")
+    print(f"time taken:                               {elapsed:.0f}s")
 
-    # Worth keeping for error analysis later, not just the one final number.
-    results_path = ROOT / "experiments" / "test_translations.txt"
+    # Beam results go to their own file. The greedy baseline,
+    # experiments/test_translations.txt, is never written by this script.
+    results_path = ROOT / "experiments" / f"test_translations_beam{beam_size}.txt"
     results_path.parent.mkdir(parents=True, exist_ok=True)
     with open(results_path, "w", encoding="utf-8") as f:
         for hyp, ref in zip(hypotheses, references):
