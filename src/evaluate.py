@@ -27,6 +27,8 @@ def parse_args(decoding_cfg):
     parser = argparse.ArgumentParser(description="Decode the test set and score it with sacrebleu.")
     parser.add_argument("--beam-size", type=int, default=decoding_cfg["beam_size"])
     parser.add_argument("--alpha", type=float, default=decoding_cfg["length_alpha"])
+    parser.add_argument("--start", type=int, default=0, help="index of the first test sentence to use")
+    parser.add_argument("--limit", type=int, default=None, help="how many sentences to use (default: all from --start)")
     return parser.parse_args()
 
 
@@ -78,13 +80,38 @@ def main():
 
     test_set = load_dataset(dataset_name, split="test")
 
+    # Sentences [first, last) of the test set. Anything short of the whole
+    # set is a partial run: its BLEU is not comparable to a full-test BLEU.
+    first = args.start
+    last = len(test_set) if args.limit is None else min(first + args.limit, len(test_set))
+    if not 0 <= first < last:
+        sys.exit(f"Empty selection: --start {first} --limit {args.limit} on {len(test_set)} sentences")
+    partial = (first, last) != (0, len(test_set))
+    partial_note = f"PARTIAL RUN: sentences {first} to {last} only"
+
+    # Results are appended one sentence at a time. "x" mode refuses to open an
+    # existing file, so no earlier results file can ever be overwritten.
+    if partial:
+        results_name = f"test_translations_beam{beam_size}_start{first}_limit{last - first}.txt"
+    else:
+        results_name = f"test_translations_beam{beam_size}.txt"
+    results_path = ROOT / "experiments" / results_name
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        results_file = open(results_path, "x", encoding="utf-8")
+    except FileExistsError:
+        sys.exit(f"Refusing to overwrite existing results file: {results_path}")
+
+    if partial:
+        print(partial_note)
+
     hypotheses = []
     references = []
     ended_without_eos = 0
 
-    print(f"Decoding {len(test_set)} test sentences with beam search (one at a time)...")
+    print(f"Decoding {last - first} test sentences with beam search (one at a time)...")
     start = time.time()
-    for i, example in enumerate(test_set):
+    for i, example in enumerate(test_set.select(range(first, last))):
         german_sentence = example[src_lang]
         reference = example[tgt_lang]
 
@@ -106,9 +133,14 @@ def main():
         hypotheses.append(translation)
         references.append(reference)
 
+        # Saved immediately so a crash keeps everything decoded so far.
+        results_file.write(f"HYP: {translation}\nREF: {reference}\n\n")
+        results_file.flush()
+
         if (i + 1) % 100 == 0:
-            print(f"  {i + 1}/{len(test_set)}  ({time.time() - start:.0f}s)")
+            print(f"  {i + 1}/{last - first}  ({time.time() - start:.0f}s)")
     elapsed = time.time() - start
+    results_file.close()
 
     n = len(hypotheses)
     hard_loops = sum(longest_run(h.split()) >= 3 for h in hypotheses)
@@ -120,15 +152,13 @@ def main():
     print(f"repeated 3-word phrase:                   {repeated_phrases} ({100 * repeated_phrases / n:.1f}%)")
     print(f"ended without <eos>:                      {ended_without_eos}")
     print(f"time taken:                               {elapsed:.0f}s")
+    print(f"seconds per sentence:                     {elapsed / n:.2f}s")
 
-    # Beam results go to their own file. The greedy baseline,
-    # experiments/test_translations.txt, is never written by this script.
-    results_path = ROOT / "experiments" / f"test_translations_beam{beam_size}.txt"
-    results_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(results_path, "w", encoding="utf-8") as f:
-        for hyp, ref in zip(hypotheses, references):
-            f.write(f"HYP: {hyp}\nREF: {ref}\n\n")
+    # Beam results go to their own file (written above, sentence by sentence).
+    # The greedy baseline, experiments/test_translations.txt, is never touched.
     print(f"Saved hypotheses + references to {results_path}")
+    if partial:
+        print(partial_note)
 
 
 if __name__ == "__main__":

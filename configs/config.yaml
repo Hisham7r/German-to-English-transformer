@@ -51,3 +51,9 @@ smoke_test:
   batch_size: 32
   num_epochs: 15
   warmup_steps: 100
+
+# Decoding for src/evaluate.py. beam_size 1 behaves like greedy.
+# length_alpha: length-normalization exponent; 0 = raw score, no normalization.
+decoding:
+  beam_size: 4
+  length_alpha: 0.6
