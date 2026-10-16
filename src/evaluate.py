@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src" / "models"))
 
 from analyze_outputs import has_repeated_ngram, longest_run
+from data.dataset import encode_source
 from data.detokenize import build_boundary_map, clean_decode
 from decode import beam_search_decode
 from models.transformer import Transformer
@@ -91,10 +92,12 @@ def main():
 
     # Results are appended one sentence at a time. "x" mode refuses to open an
     # existing file, so no earlier results file can ever be overwritten.
+    # "_markers" = source built with encode_source ([sos] ... [eos]); keeps these
+    # files apart from the older no-marker results, which are never overwritten.
     if partial:
-        results_name = f"test_translations_beam{beam_size}_start{first}_limit{last - first}.txt"
+        results_name = f"test_translations_beam{beam_size}_start{first}_limit{last - first}_markers.txt"
     else:
-        results_name = f"test_translations_beam{beam_size}.txt"
+        results_name = f"test_translations_beam{beam_size}_markers.txt"
     results_path = ROOT / "experiments" / results_name
     results_path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -115,7 +118,7 @@ def main():
         german_sentence = example[src_lang]
         reference = example[tgt_lang]
 
-        src_ids = tokenizer.encode(german_sentence).ids
+        src_ids = encode_source(german_sentence, tokenizer, SOS_ID, EOS_ID)
         src = torch.tensor([src_ids], dtype=torch.long, device=device)
         src_mask = (src != PAD_ID).unsqueeze(1)
 

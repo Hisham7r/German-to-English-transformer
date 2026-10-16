@@ -128,6 +128,7 @@ if __name__ == "__main__":
     print(f"Loaded checkpoint from epoch {checkpoint['epoch']}, val_loss {checkpoint['best_val_loss']:.4f}")
 
     # Try one real German sentence
+    from data.dataset import encode_source
     from datasets import load_dataset
 
     dataset_name = config["dataset"]["name"]
@@ -142,7 +143,7 @@ if __name__ == "__main__":
         german_sentence = test_set[i][src_lang]
         reference = test_set[i][tgt_lang]
 
-        src_ids = tokenizer.encode(german_sentence).ids
+        src_ids = encode_source(german_sentence, tokenizer, SOS_ID, EOS_ID)
         src = torch.tensor([src_ids], dtype=torch.long, device=device)
         src_mask = (src != PAD_ID).unsqueeze(1)
 

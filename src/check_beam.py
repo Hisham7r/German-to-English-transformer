@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src" / "models"))
 
 from analyze_outputs import has_repeated_ngram, longest_run
+from data.dataset import encode_source
 from data.detokenize import build_boundary_map, clean_decode
 from decode import beam_search_decode, greedy_decode
 from models.transformer import Transformer
@@ -55,7 +56,7 @@ def main():
     test_set = load_dataset(ds_name, split="test")
 
     def encode(i):
-        ids = tokenizer.encode(test_set[i][src_lang]).ids
+        ids = encode_source(test_set[i][src_lang], tokenizer, SOS_ID, EOS_ID)
         src = torch.tensor([ids], dtype=torch.long, device=device)
         return src, (src != PAD_ID).unsqueeze(1)
 

@@ -13,12 +13,19 @@ from torch.utils.data import DataLoader, Dataset
 #  and it hands you back one German sentence and  
 #  one English sentence, already converted to numbers.
 
+def encode_source(text, tokenizer, sos_id, eos_id):
+    # The one place that turns a German sentence into model input ids. Training
+    # (TranslationDataset) and decoding (evaluate.py, decode.py, check_beam.py)
+    # must all go through here so the model sees the same format in both.
+    return [sos_id] + tokenizer.encode(text).ids + [eos_id]
+
+
 class TranslationDataset(Dataset):
     def __init__(self, split, tokenizer, sos_id, eos_id, source_lang, target_lang):
         self.source = []
         self.target = []
         for example in split:
-            src_ids = [sos_id] + tokenizer.encode(example[source_lang]).ids + [eos_id]
+            src_ids = encode_source(example[source_lang], tokenizer, sos_id, eos_id)
             tgt_ids = [sos_id] + tokenizer.encode(example[target_lang]).ids + [eos_id]
             self.source.append(torch.tensor(src_ids, dtype=torch.long))
             self.target.append(torch.tensor(tgt_ids, dtype=torch.long))
