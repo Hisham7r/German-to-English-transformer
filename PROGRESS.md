@@ -1,3 +1,21 @@
+  ## START HERE
+
+  - **Project:** a German to English Transformer written from scratch in PyTorch.
+  - **Official result:** greedy decoding on all 1,000 test sentences, with `<sos>/<eos>` German input (same as training): **BLEU 37.58**. Beam 4 on the test set: **not run**.
+  - **Rule:** tune on the validation split only. The test split is for final numbers.
+  - **Beam 4 is on hold:** +0.69 BLEU on 200 validation sentences, **not proven** (bootstrap: beam 4 higher in 90.4% of resamples, range -0.29 to 2.41), and about 19x slower than greedy (9.63 s vs 0.52 s per sentence).
+  - **Next step:** Phase 3 (serving, Docker, tracking). Training stops (best checkpoint epoch 33, val loss 1.7422). The glue-rule check is done and the old rule is kept. A tokenizer retrain is deferred as an optional later experiment; an alpha test is not decided and not run.
+  - **Backup:** `best_model_weights.pt` is backed up (confirmed by the user). It is not in git. `best_model.pt` (552.8 MiB, with optimizer state, only needed to resume training): backup **not confirmed**.
+  - **Check scripts** (`src/check_*.py`):
+    - `check_beam.py`: beam size 1 against greedy (identical ids?) and a beam-size table on the first 200 test sentences (run before the input fix).
+    - `check_src_markers.py`: greedy on the first 200 validation sentences, German input without vs. with `<sos>/<eos>`.
+    - `check_beam_gain.py`: checks the joined beam 4 validation file, then a paired bootstrap of beam 4 vs. beam 1.
+    - `check_unseen_words.py`: share of output words that never appear in the training English (first 200 validation sentences).
+    - `check_text_fixes.py`: BLEU effect of re-gluing spaced hyphens and apostrophes in the output (first 200 validation sentences).
+    - `check_glue_rule.py`: greedy on the first 200 validation sentences, old single-id word-gluing rule vs. a previous-id rule (not yet committed).
+
+  ---
+
   # Project Progress
 
   **Single source of truth for implementation progress.** A new agent or developer should be able to read this file and know what exists, what works, what is being built right now, and what to do next. Goals, constraints and agent working rules live in [CLAUDE.md](CLAUDE.md); this file tracks the *build*. Maintenance rules are in CLAUDE.md → "Project Progress Tracking".
@@ -136,13 +154,17 @@
 
   Paired bootstrap, beam 4 vs. greedy, with markers (1000 resamples, seed 42): mean BLEU difference 0.86, 95% range -0.29 to 2.41, beam 4 higher in 90.4% of resamples. **Not proven:** the range includes zero.
 
+  Glue rule check (`src/check_glue_rule.py`; validation, first 200 sentences, greedy; hyphen and apostrophe fixes applied to both outputs): old single-id rule BLEU **40.58** (BP 0.990), 57 unseen words of 2,364 (**2.4%**); new previous-id rule BLEU **40.88** (BP 0.995), 53 of 2,372 (**2.2%**); 20 of 200 outputs differ. The +0.30 was **not tested for significance**. In the agent's reading of 10 differing examples, 6 were better and 4 worse (the new rule writes "woman ' s"); that is a **judgment**, not a measurement. **Decision: keep the old rule.**
+
+  **Decision: training stops.** Best checkpoint epoch 33, val loss 1.7422. A tokenizer retrain is deferred as an optional later experiment. Next phase: Phase 3.
+
   The beam 4 validation run was done in two parts because the laptop battery died: sentences 0-149, then 150-199 with `--start 150 --limit 50`. The join was checked: 200 entries, no duplicates, references match the validation set in order. The no-`<eos>` count for beam 4 cannot be recomputed from the text files.
 
   Beam 4 with markers, validation sentences 150-199: **482 s, 9.63 s per sentence** (50 sentences only; the time of the first 150 was lost when the battery died). Full-test beam 4 with markers: about 2.7 hours, **ESTIMATED** from 9.63 s per sentence, **not run**.
 
   **Measured with the wrong input format** (German input without `<sos>/<eos>`; superseded, do not cite). Test set, 1,000 sentences: greedy BLEU 24.34, beam 4 (alpha 0.6) 30.17. Greedy to beam 4: length ratio 1.481 to 1.258, hard loops 13.2% to 6.7%, repeated 3-word phrase 29.3% to 21.2%, ended without `<eos>` 33 to 11, time about 13 minutes to 3.2 hours (11.53 s per sentence). First-200-test-sentence beam table, BLEU 24.06 / 30.00 / 32.27 for beam 1 / 2 / 4. `analyze_outputs.py` on the greedy output: 39.4% repeated 3-word sequence, 14.5% same-word run of 3+, 5.7% longer than the longest reference (real references: 0.7%, 0.0%).
 
-  Known limits (still open): heuristic detokenizer (for example it produces "beigerug" -- Known Issues #2); beam size and alpha not tuned; beam search not batched (Known Issues #8); `best_model.pt` exists only on the laptop (Known Issues #9). **Unmeasured:** beam 4 on the full test set with markers; full-test BLEU for beam 2 or any other beam size/alpha; any measured breakdown of beam-4 errors by type (only a 40-sentence hand read exists, on no-marker output -- judgments, see Detail).
+  Known limits (still open): heuristic detokenizer (for example it produces "beigerug" -- Known Issues #2); beam size and alpha not tuned; beam search not batched (Known Issues #8); `best_model.pt` backup not confirmed (Known Issues #9); results are on Multi30k image captions only (Known Issues #12). **Unmeasured:** beam 4 on the full test set with markers; full-test BLEU for beam 2 or any other beam size/alpha; any measured breakdown of beam-4 errors by type (only a 40-sentence hand read exists, on no-marker output -- judgments, see Detail).
 
   ### Detail
 
@@ -174,11 +196,9 @@
 
   ## 5. Next Steps
 
-  0. **Back up `best_model.pt`** (Known Issues #9) -- it exists only on the laptop.
-  1. **Commit the pending work:** `score_results.py`, `check_beam_gain.py`, `check_unseen_words.py`, `check_text_fixes.py` (not yet committed; `--split` in `evaluate.py` is done, `a6a1dfa`).
-  2. **Characterize what still goes wrong** with greedy and beam 4, now with markers: which sentence types, rare words, lengths -- on validation sentences, per the evaluation rule. (The source-marker comparison, formerly item 1, is done: Known Issues #11.)
-  3. **Tune beam size and alpha on the validation split.** The beam 4 gain over greedy on 200 validation sentences is not proven (bootstrap range -0.29 to 2.41), so the first question is whether beam search is worth its cost at all. Batching and/or a KV cache for `beam_search_decode` first (Known Issues #8). Beam 4 on the full test set with markers is **unmeasured**; run it only after the setting is chosen on validation.
-  4. **Phase 2 controlled experiments:** the AddNorm dropout placement (Known Issues #1), whether a different warmup does better than 4000, and — only if readability matters beyond BLEU (the punctuation-fix test suggests it may not for scoring) — retraining the tokenizer with a proper boundary marker and retraining the model against it (Known Issues #2).
+  1. **Phase 3 (production):** FastAPI endpoint (German in, English out), Docker, experiment tracking, README. Serving must follow the `encode_source` / `clean_decode` rule in Important Decisions. Training stops; the glue-rule check is done and the old rule is kept.
+  2. **Beam 4 is on hold** (not proven, about 19x slower than greedy -- see START HERE). Beam 4 on the full test set with markers: not run.
+  3. **Deferred, optional later experiments:** a tokenizer retrain with a proper boundary marker and a model retrain against it (Known Issues #2); the AddNorm dropout placement (Known Issues #1); a warmup comparison against 4000; an alpha test (not decided).
 
   ---
 
@@ -224,9 +244,10 @@
   | 6 | `README.md` is a 2-line stub. | `README.md` | Deferred to Phase 3 polish | No |
   | 7 | **Repetition in greedy output: most of what was measured earlier came from the input bug (#11), not from the model.** The old percentages (no-marker input) are in the Section 4 note only. With the correct input, test greedy (1,000 sentences, `evaluate.py` definitions) has hard loops (same word 3+ in a row) **3.0%**, repeated 3-word phrase **5.1%**, 4 ended without `<eos>`. Repetition is much lower but not gone. Whether beam 4 reduces it further with markers is **unmeasured** on the test set; on 200 validation sentences the beam 4 BLEU gain is not proven (bootstrap, #10). (`analyze_outputs.py` and `evaluate.py` use different definitions of repetition -- do not mix them.) | `src/decode.py`, `src/evaluate.py`, model behavior | Mostly explained by the input bug; remainder open | No |
   | 8 | **Beam search is not batched and has no KV cache** (one decoder pass per beam per step, one sentence at a time). In the old no-marker run the full test set at beam 4 took ~3.2 hours (11.53 s per sentence) vs. ~13 minutes for greedy; greedy with markers took 515 s. Beam 4 time on the full test set with markers is unmeasured. Limits how many beam sizes/alphas can be tried. | `src/decode.py` | Open | Slows tuning, nothing else |
-  | 9 | **`best_model.pt` exists only on the laptop** (gitignored; 580MB). `best_model_weights.pt` (194MB) is derived from it, same machine. No other copy is recorded here. If the disk fails the trained model is lost and training must be re-run. | `experiments/` | Open | No |
+  | 9 | **`best_model_weights.pt` is backed up** (confirmed by the user); it is not in git. `best_model.pt` (552.8 MiB, with optimizer state) is only needed to resume training, and its backup is **not confirmed**. | `experiments/` | weights backed up; full checkpoint not | No |
   | 10 | **Beam size (4) and length alpha (0.6) are not tuned.** They are config defaults. With markers, only greedy (= beam 1) has a full-test BLEU (37.58); beam 4 was measured on 200 validation sentences only. | `configs/config.yaml → decoding:` | Open | No |
   | 11 | ✅ **Fixed and measured -- source `<sos>/<eos>` markers differed between training and decoding (training-serving skew).** `TranslationDataset` wrapped the German source as `[sos] + ids + [eos]` for training (so the validation loss 1.74 was measured with the markers); `decode.py`, `evaluate.py` and `check_beam.py` encoded it without them (the tokenizer has no post-processor). Fixed by one shared function, `encode_source` in `src/data/dataset.py`, used by training and all decoding scripts (commit `2008819`). Measured on validation, first 200, greedy: BLEU 26.01 without markers, 40.39 with (`src/check_src_markers.py`). Test, greedy, with markers: 37.58. Old no-marker numbers are in the Section 4 note. Why the gap is so large was not analysed. | `src/data/dataset.py`, `src/decode.py`, `src/evaluate.py`, `src/check_beam.py` | Fixed | No |
+  | 12 | **Known limit: all results are on Multi30k image captions only** (short, clean, about 12 words). How the model does on other kinds of German text is not measured. | whole project | Known limit | No |
 
   Environment gotchas (not bugs):
   - The Bash tool's terminal mangles UTF-8 (umlauts show as `�`); use PowerShell to view German text. Data on disk is correct.
@@ -289,6 +310,7 @@
   - **All `.py`, no notebooks; no `Co-Authored-By` lines in commits** (see CLAUDE.md).
   - **Evaluation rule (set 2026-10-15): tune on the VALIDATION split, report on the test split.** From now on anything that is tuned or chosen -- beam size, alpha, repeat rules, decoding changes -- is decided on validation sentences; the test split is used only for final reported numbers. **Recorded honestly:** test sentences have already been used twice for decisions: (1) the first-200-test-sentence beam-size table in `check_beam.py` (beam 4 was chosen from it), and (2) the 40-sentence hand read. The old test scores (24.34, 30.17) are superseded (wrong input format). Any future beam 4 test number is not fully clean of test-set influence, because beam 4 was chosen using the first-200-test-sentence table.
   - **All German model input goes through `encode_source` (set 2026-10-18).** Training and every decoding script build the source with the one shared function in `src/data/dataset.py`, so the input format cannot drift apart again. Results files written with it carry `_markers`; old no-marker files are kept and never overwritten.
+  - **Serving rule (set for Phase 3):** serving must build German input with `encode_source` and clean the output with the same `clean_decode` as `evaluate.py`, and a test must check the ids match training. No such test exists yet.
   - **Warmup steps: 4000 (the paper's value), not a shortened warmup, and 40 epochs.** This file previously argued 4000 was tuned for WMT-scale data and recommended ~1000 for 29k pairs; that was tried and the model **diverged**. Reverting close to the paper's original value fixed it. Recorded here so the earlier (wrong) reasoning isn't repeated: dataset size alone isn't a safe basis for cutting warmup — treat it as a value to test, not assume.
   - **BPE-rejoin: heuristic workaround, not a tokenizer retrain (decided 2026-10-03, with the user).** Direct inspection of `data/bpe_tokenizer.json` showed the vocab has no word-boundary marker on any entry, so no decoder object can correctly rejoin a generated id sequence — the information needed was discarded during tokenizer training (`BpeTrainer` with default `continuing_subword_prefix`/`end_of_word_suffix`), not missing from the decode step. The correct fix — retrain the tokenizer with a boundary marker and retrain the model against the new vocab — would invalidate `best_model.pt` (val loss 1.74) and cost a new Colab run before any BLEU number exists. Given that cost, chose instead to approximate word boundaries from training-corpus statistics (`src/data/detokenize.py`) so `evaluate.py` can produce a real, if imperfect, BLEU number now. **Validated 2026-10-04:** the heuristic's residual error (stray space before punctuation) measurably exists but does not move the BLEU score (`sacrebleu` normalizes it internally — confirmed via `analyze_outputs.py`'s before/after comparison, identical score). This lowers the urgency of a tokenizer retrain — it would improve human readability, not the evaluation metric — so it stays optional Phase 2 follow-up rather than a priority.
 

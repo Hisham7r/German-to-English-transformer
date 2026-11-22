@@ -73,8 +73,8 @@ translator/
 │   ├── data/                  # tokenizer, vocabulary, Dataset/DataLoader code
 │   ├── models/                # Transformer architecture components
 │   ├── training/              # LR schedule, label smoothing (train loop not yet written)
-│   ├── train.py               # (not yet created — planned for Week 3)
-│   └── evaluate.py            # (not yet created — planned for Week 4)
+│   ├── train.py
+│   └── evaluate.py
 ├── experiments/               # logs, checkpoints, run outputs (gitignored)
 ├── .gitignore
 ├── requirements.txt
