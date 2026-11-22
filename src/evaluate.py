@@ -28,6 +28,8 @@ def parse_args(decoding_cfg):
     parser = argparse.ArgumentParser(description="Decode the test set and score it with sacrebleu.")
     parser.add_argument("--beam-size", type=int, default=decoding_cfg["beam_size"])
     parser.add_argument("--alpha", type=float, default=decoding_cfg["length_alpha"])
+    parser.add_argument("--split", choices=["test", "validation"], default="test",
+                        help="which split to decode; validation is for tuning only, test for final numbers")
     parser.add_argument("--start", type=int, default=0, help="index of the first test sentence to use")
     parser.add_argument("--limit", type=int, default=None, help="how many sentences to use (default: all from --start)")
     return parser.parse_args()
@@ -79,7 +81,9 @@ def main():
     boundary_map = build_boundary_map(tokenizer, train_sentences)
     print(f"Boundary map covers {len(boundary_map)} token ids")
 
-    test_set = load_dataset(dataset_name, split="test")
+    # Despite the name, this is whichever split --split chose (default: test).
+    test_set = load_dataset(dataset_name, split=args.split)
+    split_note = "SPLIT: validation (tuning only)"
 
     # Sentences [first, last) of the test set. Anything short of the whole
     # set is a partial run: its BLEU is not comparable to a full-test BLEU.
@@ -95,9 +99,9 @@ def main():
     # "_markers" = source built with encode_source ([sos] ... [eos]); keeps these
     # files apart from the older no-marker results, which are never overwritten.
     if partial:
-        results_name = f"test_translations_beam{beam_size}_start{first}_limit{last - first}_markers.txt"
+        results_name = f"{args.split}_translations_beam{beam_size}_start{first}_limit{last - first}_markers.txt"
     else:
-        results_name = f"test_translations_beam{beam_size}_markers.txt"
+        results_name = f"{args.split}_translations_beam{beam_size}_markers.txt"
     results_path = ROOT / "experiments" / results_name
     results_path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -105,6 +109,8 @@ def main():
     except FileExistsError:
         sys.exit(f"Refusing to overwrite existing results file: {results_path}")
 
+    if args.split == "validation":
+        print(split_note)
     if partial:
         print(partial_note)
 
@@ -162,6 +168,8 @@ def main():
     print(f"Saved hypotheses + references to {results_path}")
     if partial:
         print(partial_note)
+    if args.split == "validation":
+        print(split_note)
 
 
 if __name__ == "__main__":
