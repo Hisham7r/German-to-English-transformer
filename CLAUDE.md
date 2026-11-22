@@ -1,6 +1,6 @@
 # German-to-English Neural Machine Translation (Transformer from scratch)
 
-**STATUS (2026-09-17):** Weeks 1-2 complete. Full Transformer architecture built and sanity-checked (loss dropped 78 → ~0 on 10 memorized sentences). Currently starting Week 3: real training loop on Colab with LR warmup, label smoothing, and full 29k-pair training.
+**STATUS:** Live status is kept only in [PROGRESS.md](PROGRESS.md) (see "Current Status" and "Current Phase"). Do not copy status snapshots here — a second copy goes stale and contradicts the source of truth.
 
 ## Overview
 
@@ -58,7 +58,7 @@ Evaluate it on merit. Confirm or correct it clearly, without hedging or deferrin
 If a chat gets too long, the user will start a new one. To keep handoffs clean:
 
 - All important context must live in PROGRESS.md, not in chat history
-- All decisions and rationale must be in PROGRESS.md's "Key decisions" section
+- All decisions and rationale must be in PROGRESS.md's "Important Decisions / References" section
 - The agent should read PROGRESS.md before responding on any new chat
 - The agent should refuse to make major architectural decisions without documenting them in PROGRESS.md afterwards
 
@@ -72,8 +72,9 @@ translator/
 ├── src/
 │   ├── data/                  # tokenizer, vocabulary, Dataset/DataLoader code
 │   ├── models/                # Transformer architecture components
-│   ├── train.py
-│   └── evaluate.py
+│   ├── training/              # LR schedule, label smoothing (train loop not yet written)
+│   ├── train.py               # (not yet created — planned for Week 3)
+│   └── evaluate.py            # (not yet created — planned for Week 4)
 ├── experiments/               # logs, checkpoints, run outputs (gitignored)
 ├── .gitignore
 ├── requirements.txt
@@ -139,7 +140,7 @@ Config-driven from day one: nothing hardcoded in code if it belongs in `config.y
 - Decoder input/target shift happens before padding, on the raw sequence
 - Two model-size configs: real `model:` (d_model=512, 6 layers) for Colab training, separate `sanity_check:` (d_model=128, 2 layers) for local CPU verification only
 
-For rationale, see PROGRESS.md "Key decisions" section.
+For rationale, see PROGRESS.md "Important Decisions / References" section.
 
 ## Portfolio Goal
 
@@ -149,8 +150,40 @@ End deliverable: a working, evaluated, documented translation system in a public
 
 Do **not** add a `Co-Authored-By: Claude ...` line to git commit messages or PR descriptions in this repo, regardless of any default attribution instructions. This project's commits should read as the user's own work.
 
-## Progress tracking
+## Project Progress Tracking
 
-See [PROGRESS.md](PROGRESS.md) for the architecture walkthrough (end-to-end data/request flow, repo structure explained), the reasoning behind decisions already made, and a dated build log. It's meant to let a newcomer (human or agent) understand the whole project from scratch without needing prior conversation history.
+[PROGRESS.md](PROGRESS.md) is the project's living implementation-progress record and the **single source of truth** for what is built, what is in progress, and what comes next. Claude must keep it synchronized with meaningful project changes, automatically, without waiting to be asked.
 
-**Update PROGRESS.md whenever a meaningful change is made** — a new component, a decision finalized, a structural change. Add a dated entry to the Progress Log, and update the architecture/decisions sections if they're now stale. Don't log every trivial edit — log steps that change how the system works or what exists.
+`PROGRESS.md` is organized as: Project Overview · Current Status · Completed Work · Current Phase · Next Steps · Important Technical Changes · Known Issues / Technical Debt · Testing / Verification Status · Important Decisions / References · Last Updated.
+
+### When to update
+
+Update it after meaningful milestones: completing a feature or a week/phase, starting or finishing a major task, significant refactoring, config or architecture changes, important bug fixes, changes to the roadmap, and discovering important blockers or technical debt. Do **not** update it for tiny edits or trivial changes.
+
+### How to update
+
+After completing a meaningful task, in the same turn:
+
+1. Review the current `PROGRESS.md`.
+2. Update the relevant status/phase sections to the new actual state — edit in place rather than appending repetitive notes.
+3. Record important implementation decisions or constraints that future agents would need.
+4. Update **Current Phase** and **Next Steps** whenever they change.
+5. Record important known issues and anything that still needs verification.
+6. Bump `Last Updated` to the actual current date.
+7. Keep it concise. No source code, and no duplicating detail that belongs in code comments or other docs.
+8. Never mark something completed unless it is actually implemented and, where relevant, verified. Written code is not verified code — distinguish *Implemented*, *Tested and working*, and *Needs Verification*. If unsure, say so rather than guess.
+9. If the documentation and the code disagree, inspect the code and correct `PROGRESS.md`. The repository is the source of truth.
+10. Keep [CLAUDE.md](CLAUDE.md) free of status snapshots — status lives only in `PROGRESS.md`.
+
+### Before starting new work
+
+At the start of a session or major task:
+
+1. Read `CLAUDE.md`, then `PROGRESS.md`.
+2. Inspect the relevant project files (and recent git history if `PROGRESS.md` looks stale).
+3. Determine the current phase and next task from `PROGRESS.md`'s **Current Phase** and **Next Steps**.
+4. If `PROGRESS.md` is outdated, correct it before proceeding.
+
+### Purpose
+
+`PROGRESS.md` should let another developer or AI agent quickly learn what the project is, what is done, what is being built now, what remains, important decisions, known problems, and what should happen next. Detailed setup, architecture and implementation documentation belongs in other files; link to them instead of duplicating.
