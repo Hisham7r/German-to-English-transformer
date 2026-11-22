@@ -4,7 +4,7 @@
   - **Official result:** greedy decoding on all 1,000 test sentences, with `<sos>/<eos>` German input (same as training): **BLEU 37.58**. Beam 4 on the test set: **not run**.
   - **Rule:** tune on the validation split only. The test split is for final numbers.
   - **Beam 4 is on hold:** +0.69 BLEU on 200 validation sentences, **not proven** (bootstrap: beam 4 higher in 90.4% of resamples, range -0.29 to 2.41), and about 19x slower than greedy (9.63 s vs 0.52 s per sentence).
-  - **Next step:** Phase 3 (serving, Docker, tracking). Training stops (best checkpoint epoch 33, val loss 1.7422). The glue-rule check is done and the old rule is kept. A tokenizer retrain is deferred as an optional later experiment; an alpha test is not decided and not run.
+  - **Next step:** Phase 3 planning: a written serving plan, approved by the user before any code (then serving, Docker, tracking). Training stops (best checkpoint epoch 33, val loss 1.7422). The glue-rule check is done and the old rule is kept. A tokenizer retrain is deferred as an optional later experiment; an alpha test is not decided and not run.
   - **Backup:** `best_model_weights.pt` is backed up (confirmed by the user). It is not in git. `best_model.pt` (552.8 MiB, with optimizer state, only needed to resume training): backup **not confirmed**.
   - **Check scripts** (`src/check_*.py`):
     - `check_beam.py`: beam size 1 against greedy (identical ids?) and a beam-size table on the first 200 test sentences (run before the input fix).
@@ -12,7 +12,7 @@
     - `check_beam_gain.py`: checks the joined beam 4 validation file, then a paired bootstrap of beam 4 vs. beam 1.
     - `check_unseen_words.py`: share of output words that never appear in the training English (first 200 validation sentences).
     - `check_text_fixes.py`: BLEU effect of re-gluing spaced hyphens and apostrophes in the output (first 200 validation sentences).
-    - `check_glue_rule.py`: greedy on the first 200 validation sentences, old single-id word-gluing rule vs. a previous-id rule (not yet committed).
+    - `check_glue_rule.py`: greedy on the first 200 validation sentences, old single-id word-gluing rule vs. a previous-id rule (committed in `241dd6c`).
 
   ---
 
@@ -68,7 +68,11 @@
   src/analyze_outputs.py         quantifies repetition + punctuation-spacing effect on experiments/test_translations.txt
   src/check_beam.py              beam-vs-greedy correctness check + beam-size table on the first 200 test sentences (pushed 2026-10-08)
   src/check_src_markers.py       greedy A/B on the first 200 validation sentences: German input without vs. with markers
-  (not yet committed: src/score_results.py -- scores saved HYP/REF files; src/check_beam_gain.py -- join check + paired bootstrap, beam 1 vs. beam 4)
+  src/score_results.py           scores saved HYP/REF results files; writes nothing (committed in ddf27e7)
+  src/check_beam_gain.py         join check + paired bootstrap, beam 1 vs. beam 4 (committed in ddf27e7)
+  src/check_unseen_words.py      share of output words never seen in the training English, first 200 validation sentences (committed in ddf27e7)
+  src/check_text_fixes.py        BLEU effect of re-gluing spaced hyphens and apostrophes, first 200 validation sentences (committed in ddf27e7)
+  src/check_glue_rule.py         old single-id vs. previous-id word-gluing rule, first 200 validation sentences (committed in 241dd6c)
   ```
 
   `experiments/` holds `best_model.pt` (580MB, the real Colab run, with optimizer/scheduler state), `best_model_weights.pt` (194MB, same run, only `epoch`/`best_val_loss`/`model_state` -- no optimizer state, created 2026-10-08; presumably for easier transfer to Colab, since nothing in the repo loads it yet), result files (`test_translations*.txt`, `validation_translations*.txt`) and local smoke-test checkpoints; all gitignored.
@@ -248,6 +252,7 @@
   | 10 | **Beam size (4) and length alpha (0.6) are not tuned.** They are config defaults. With markers, only greedy (= beam 1) has a full-test BLEU (37.58); beam 4 was measured on 200 validation sentences only. | `configs/config.yaml → decoding:` | Open | No |
   | 11 | ✅ **Fixed and measured -- source `<sos>/<eos>` markers differed between training and decoding (training-serving skew).** `TranslationDataset` wrapped the German source as `[sos] + ids + [eos]` for training (so the validation loss 1.74 was measured with the markers); `decode.py`, `evaluate.py` and `check_beam.py` encoded it without them (the tokenizer has no post-processor). Fixed by one shared function, `encode_source` in `src/data/dataset.py`, used by training and all decoding scripts (commit `2008819`). Measured on validation, first 200, greedy: BLEU 26.01 without markers, 40.39 with (`src/check_src_markers.py`). Test, greedy, with markers: 37.58. Old no-marker numbers are in the Section 4 note. Why the gap is so large was not analysed. | `src/data/dataset.py`, `src/decode.py`, `src/evaluate.py`, `src/check_beam.py` | Fixed | No |
   | 12 | **Known limit: all results are on Multi30k image captions only** (short, clean, about 12 words). How the model does on other kinds of German text is not measured. | whole project | Known limit | No |
+  | 13 | **`src/decode.py` has an uncommitted, unverified batched beam search** (`beam_search_decode_batched`, working copy only). No verified comparison against `beam_search_decode` is recorded. It stays out of git until it is tested. | `src/decode.py` (working copy) | Uncommitted, unverified | No |
 
   Environment gotchas (not bugs):
   - The Bash tool's terminal mangles UTF-8 (umlauts show as `�`); use PowerShell to view German text. Data on disk is correct.
@@ -287,7 +292,7 @@
   | `check_beam.py` | ✅ Tested and working (CPU, ~50 min total) before the input fix | Re-runnable correctness check + beam-size table; now uses `encode_source` but has **not been re-run** since |
   | `encode_source` (`dataset.py`) | ✅ Tested and working | Equality check against what `TranslationDataset` builds on the first 200 training sentences passed, so training behaviour is unchanged |
   | `check_src_markers.py` | ✅ Run | Validation, first 200, greedy: 26.01 without markers, 40.39 with |
-  | `check_beam_gain.py`, `score_results.py` (not yet committed) | ✅ Run | Join check passed (200 entries, no duplicates, references match the validation set in order); paired bootstrap, 1000 resamples, seed 42: difference 0.86, range -0.29 to 2.41, beam 4 higher in 90.4% |
+  | `check_beam_gain.py`, `score_results.py` (committed in `ddf27e7`) | ✅ Run | Join check passed (200 entries, no duplicates, references match the validation set in order); paired bootstrap, 1000 resamples, seed 42: difference 0.86, range -0.29 to 2.41, beam 4 higher in 90.4% |
   | Test-set BLEU (trained model vs. 0.48 baseline) | ✅ Measured | Greedy **37.58** with markers vs. 0.48 baseline. Beam 4 on the full test set with markers: **unmeasured**. |
 
   There is no automated test suite (pytest) yet; testing is via the `__main__` blocks above.
@@ -318,4 +323,4 @@
 
   ---
 
-  Last Updated: 2026-10-18
+  Last Updated: 2026-11-23

@@ -72,7 +72,7 @@ translator/
 ├── src/
 │   ├── data/                  # tokenizer, vocabulary, Dataset/DataLoader code
 │   ├── models/                # Transformer architecture components
-│   ├── training/              # LR schedule, label smoothing (train loop not yet written)
+│   ├── training/              # LR schedule, label smoothing (the training loop is src/train.py)
 │   ├── train.py
 │   └── evaluate.py
 ├── experiments/               # logs, checkpoints, run outputs (gitignored)
