@@ -5,8 +5,8 @@ import torch.nn as nn
 import yaml
 from tokenizers import Tokenizer
 
-from decoder import Decoder, generate_causal_mask
-from encoder import Encoder
+from .decoder import Decoder, generate_causal_mask
+from .encoder import Encoder
 
 
 class Transformer(nn.Module):

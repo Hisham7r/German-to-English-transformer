@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import yaml
 
-from attention import scaled_dot_product_attention
+from .attention import scaled_dot_product_attention
 
 
 class MultiHeadAttention(nn.Module):

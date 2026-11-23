@@ -7,7 +7,7 @@ import yaml
 from datasets import load_dataset
 from tokenizers import Tokenizer
 
-from transformer import Transformer
+from .transformer import Transformer
 
 
 # ── 1. SETUP ──────────────────────────────────────────────────────────────────

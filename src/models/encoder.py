@@ -4,10 +4,10 @@ import torch
 import torch.nn as nn
 import yaml
 
-from add_norm import AddNorm
-from embeddings import PositionalEncoding, TokenEmbedding
-from feed_forward import FeedForward
-from multi_head_attention import MultiHeadAttention
+from .add_norm import AddNorm
+from .embeddings import PositionalEncoding, TokenEmbedding
+from .feed_forward import FeedForward
+from .multi_head_attention import MultiHeadAttention
 
 
 class EncoderBlock(nn.Module):
