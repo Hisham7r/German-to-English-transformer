@@ -4,7 +4,8 @@
   - **Official result:** greedy decoding on all 1,000 test sentences, with `<sos>/<eos>` German input (same as training): **BLEU 37.58**. Beam 4 on the test set: **not run**.
   - **Rule:** tune on the validation split only. The test split is for final numbers.
   - **Beam 4 is on hold:** +0.69 BLEU on 200 validation sentences, **not proven** (bootstrap: beam 4 higher in 90.4% of resamples, range -0.29 to 2.41), and about 19x slower than greedy (9.63 s vs 0.52 s per sentence).
-  - **Next step:** Phase 3 planning: a written serving plan, approved by the user before any code (then serving, Docker, tracking). Training stops (best checkpoint epoch 33, val loss 1.7422). The glue-rule check is done and the old rule is kept. A tokenizer retrain is deferred as an optional later experiment; an alpha test is not decided and not run.
+  - **Phase 3 started:** local serving works (`src/serve.py`, `src/app.py` FastAPI); greedy parity with the saved validation outputs 200/200.
+  - **Next step:** add `fastapi`/`uvicorn` to `requirements.txt`, state the model's limits to users, then Docker and experiment tracking. Training stops (best checkpoint epoch 33, val loss 1.7422). The glue-rule check is done and the old rule is kept. A tokenizer retrain is deferred as an optional later experiment; an alpha test is not decided and not run.
   - **Backup:** `best_model_weights.pt` is backed up (confirmed by the user). It is not in git. `best_model.pt` (552.8 MiB, with optimizer state, only needed to resume training): backup **not confirmed**.
   - **Check scripts** (`src/check_*.py`):
     - `check_beam.py`: beam size 1 against greedy (identical ids?) and a beam-size table on the first 200 test sentences (run before the input fix).
@@ -45,7 +46,7 @@
     greedy / beam decode (decode.py) ─► clean_decode rejoin (detokenize.py) ─► BLEU 0.48 baseline / 37.58 greedy on test, with markers (evaluate.py)
                                                                           │
     [built, verified] ◄──────────────────────────────────────────────────┘
-    error analysis (analyze_outputs.py) ─► FastAPI/Docker
+    error analysis (analyze_outputs.py) ─► FastAPI (serve.py, app.py: built, local) ─► Docker (not started)
   ```
 
   Repository map (tracked files):
@@ -73,9 +74,12 @@
   src/check_unseen_words.py      share of output words never seen in the training English, first 200 validation sentences (committed in ddf27e7)
   src/check_text_fixes.py        BLEU effect of re-gluing spaced hyphens and apostrophes, first 200 validation sentences (committed in ddf27e7)
   src/check_glue_rule.py         old single-id vs. previous-id word-gluing rule, first 200 validation sentences (committed in 241dd6c)
+  src/serve.py                   load_model() + translate(): encode_source -> greedy_decode -> clean_decode, CPU
+  src/test_parity.py             serving vs. saved greedy validation outputs, first 200 sentences
+  src/app.py                     FastAPI app: POST /translate, GET /health, GET /
   ```
 
-  `experiments/` holds `best_model.pt` (580MB, the real Colab run, with optimizer/scheduler state), `best_model_weights.pt` (194MB, same run, only `epoch`/`best_val_loss`/`model_state` -- no optimizer state, created 2026-10-08; presumably for easier transfer to Colab, since nothing in the repo loads it yet), result files (`test_translations*.txt`, `validation_translations*.txt`) and local smoke-test checkpoints; all gitignored.
+  `experiments/` holds `best_model.pt` (580MB, the real Colab run, with optimizer/scheduler state), `best_model_weights.pt` (194MB, same run, only `epoch`/`best_val_loss`/`model_state` -- no optimizer state, created 2026-10-08; loaded by `src/serve.py`), result files (`test_translations*.txt`, `validation_translations*.txt`) and local smoke-test checkpoints; all gitignored.
 
   ---
 
@@ -98,7 +102,8 @@
   | Week 4 — quantitative error analysis (`src/analyze_outputs.py`) | ✅ Completed | The repetition analysis was run on no-marker output, so its percentages live only in the Section 4 note. With markers, test greedy has hard loops 3.0% and repeated 3-word phrase 5.1% (`evaluate.py` definitions). See Known Issues #7. |
   | Weeks 5–6 — beam search (`beam_search_decode` in `src/decode.py`, `decoding:` config, `evaluate.py --beam-size/--alpha`) | ✅ Implemented and verified; measured on 200 validation sentences only | `beam_size=1` matched `greedy_decode` on 100/100 sentences (checked before the input fix). Validation, first 200, with markers: beam 4 BLEU **41.08** (length ratio 0.971) vs. greedy **40.39**; paired bootstrap difference mean 0.86, range -0.29 to 2.41, beam 4 higher in 90.4% of resamples. **Not proven.** Beam 4 on the full test set with markers: **unmeasured**. Beam size and alpha not tuned; beam 2 unmeasured. |
   | Weeks 5–6 — other improvements | 🔴 Not Started | |
-  | Weeks 7–8 — serving / Docker / tracking | 🔴 Not Started | |
+  | Weeks 7–8 — serving (`src/serve.py`, `src/app.py`) | ✅ Tested locally | Parity 200/200; endpoints checked with curl on 2026-11-25. Not deployed |
+  | Weeks 7–8 — Docker / tracking / README | 🔴 Not Started | |
   | Source `<sos>/<eos>` markers: training vs. decoding | ✅ Fixed and measured | Known Issues #11. Training-serving skew, fixed by one shared `encode_source` in `dataset.py`. Validation, first 200, greedy: 26.01 without markers, 40.39 with. Test, greedy, with markers: 37.58 |
   | AddNorm dropout placement vs. paper | ⚠️ Needs Verification | See Known Issues #1. Did not stop the real run from reaching ppl 5.71, so not urgent, but still an unresolved mismatch with the paper |
   | Full-size model training behavior (memory, speed, convergence) | ✅ Verified | Completed 40 configured epochs on Colab without the earlier divergence (after warmup 1000→4000, epochs 30→40) |
@@ -160,7 +165,7 @@
 
   Glue rule check (`src/check_glue_rule.py`; validation, first 200 sentences, greedy; hyphen and apostrophe fixes applied to both outputs): old single-id rule BLEU **40.58** (BP 0.990), 57 unseen words of 2,364 (**2.4%**); new previous-id rule BLEU **40.88** (BP 0.995), 53 of 2,372 (**2.2%**); 20 of 200 outputs differ. The +0.30 was **not tested for significance**. In the agent's reading of 10 differing examples, 6 were better and 4 worse (the new rule writes "woman ' s"); that is a **judgment**, not a measurement. **Decision: keep the old rule.**
 
-  **Decision: training stops.** Best checkpoint epoch 33, val loss 1.7422. A tokenizer retrain is deferred as an optional later experiment. Next phase: Phase 3.
+  **Decision: training stops.** Best checkpoint epoch 33, val loss 1.7422. A tokenizer retrain is deferred as an optional later experiment. Phase 3 is under way: local serving is built (2026-11-25), written to the user's task specs.
 
   The beam 4 validation run was done in two parts because the laptop battery died: sentences 0-149, then 150-199 with `--start 150 --limit 50`. The join was checked: 200 entries, no duplicates, references match the validation set in order. The no-`<eos>` count for beam 4 cannot be recomputed from the text files.
 
@@ -200,7 +205,7 @@
 
   ## 5. Next Steps
 
-  1. **Phase 3 (production):** FastAPI endpoint (German in, English out), Docker, experiment tracking, README. Serving must follow the `encode_source` / `clean_decode` rule in Important Decisions. Training stops; the glue-rule check is done and the old rule is kept.
+  1. **Phase 3 (production), remaining:** add `fastapi`/`uvicorn` to `requirements.txt`; state the model's limits and give example sentences (README, `/docs`); input guardrails (empty/over-long text); Docker; experiment tracking; README. Before any public deployment: rate limiting and HTTPS. Training stops; the glue-rule check is done and the old rule is kept.
   2. **Beam 4 is on hold** (not proven, about 19x slower than greedy -- see START HERE). Beam 4 on the full test set with markers: not run.
   3. **Deferred, optional later experiments:** a tokenizer retrain with a proper boundary marker and a model retrain against it (Known Issues #2); the AddNorm dropout placement (Known Issues #1); a warmup comparison against 4000; an alpha test (not decided).
 
@@ -232,7 +237,7 @@
   | 2026-10-18 (recorded) | **Source-marker bug fixed: `encode_source` in `dataset.py`** (commit `2008819`); `evaluate.py` gets `_markers` file names and `--split` (committed in `a6a1dfa`) | Training-serving skew: training wrapped the German source in `<sos>/<eos>`, decoding did not. Validation, first 200, greedy: 26.01 without markers, 40.39 with. Test greedy with markers: 37.58. All earlier BLEU/repetition numbers are superseded. |
   | 2026-10-18 (recorded) | Beam 4 vs. greedy on 200 validation sentences, with markers: 41.08 vs. 40.39 | Two-part run (laptop battery died), join checked. Paired bootstrap: mean difference 0.86, range -0.29 to 2.41, beam 4 higher in 90.4% of resamples. Not proven. |
 
-  No new third-party dependencies since `requirements.txt` was created (torch, datasets, sacrebleu, pyyaml, tokenizers).
+  New dependencies on 2026-11-25, installed in `.venv` but **not yet in `requirements.txt`**: `fastapi` (0.165.0), `uvicorn` (0.54.0). Earlier ones: torch, datasets, sacrebleu, pyyaml, tokenizers.
 
   ---
 
@@ -253,6 +258,7 @@
   | 11 | ✅ **Fixed and measured -- source `<sos>/<eos>` markers differed between training and decoding (training-serving skew).** `TranslationDataset` wrapped the German source as `[sos] + ids + [eos]` for training (so the validation loss 1.74 was measured with the markers); `decode.py`, `evaluate.py` and `check_beam.py` encoded it without them (the tokenizer has no post-processor). Fixed by one shared function, `encode_source` in `src/data/dataset.py`, used by training and all decoding scripts (commit `2008819`). Measured on validation, first 200, greedy: BLEU 26.01 without markers, 40.39 with (`src/check_src_markers.py`). Test, greedy, with markers: 37.58. Old no-marker numbers are in the Section 4 note. Why the gap is so large was not analysed. | `src/data/dataset.py`, `src/decode.py`, `src/evaluate.py`, `src/check_beam.py` | Fixed | No |
   | 12 | **Known limit: all results are on Multi30k image captions only** (short, clean, about 12 words). How the model does on other kinds of German text is not measured. | whole project | Known limit | No |
   | 13 | **`src/decode.py` has an uncommitted, unverified batched beam search** (`beam_search_decode_batched`, working copy only). No verified comparison against `beam_search_decode` is recorded. It stays out of git until it is tested. | `src/decode.py` (working copy) | Uncommitted, unverified | No |
+  | 14 | **Serving gaps.** `load_model()` tokenizes the whole train split at startup to build the boundary map (slow, needs the dataset available; a container health check needs a grace period). No input checks (empty or very long text is untested). `serve.py` adds `src/` to `sys.path` because `decode.py` imports `models.…` (related to #4). Weights are not in git, so a fresh clone cannot serve. | `src/serve.py`, `src/app.py` | Open | Before deployment |
 
   Environment gotchas (not bugs):
   - The Bash tool's terminal mangles UTF-8 (umlauts show as `�`); use PowerShell to view German text. Data on disk is correct.
@@ -295,7 +301,15 @@
   | `check_beam_gain.py`, `score_results.py` (committed in `ddf27e7`) | ✅ Run | Join check passed (200 entries, no duplicates, references match the validation set in order); paired bootstrap, 1000 resamples, seed 42: difference 0.86, range -0.29 to 2.41, beam 4 higher in 90.4% |
   | Test-set BLEU (trained model vs. 0.48 baseline) | ✅ Measured | Greedy **37.58** with markers vs. 0.48 baseline. Beam 4 on the full test set with markers: **unmeasured**. |
 
-  There is no automated test suite (pytest) yet; testing is via the `__main__` blocks above.
+  There is no automated test suite (pytest) yet; testing is via the `__main__` blocks above and `python -m src.test_parity`.
+
+  Serving (2026-11-25, laptop CPU):
+
+  | Component | Status | Evidence |
+  |---|---|---|
+  | `serve.py` | ✅ Tested and working | `python -m src.serve` translated "Ein Mann geht durch die Stadt." to "A man is walking through the city." |
+  | `test_parity.py` | ✅ Passed | 200/200 validation sentences: input ids equal `encode_source`, and `translate()` output equals the saved beam-1 file |
+  | `app.py` | ✅ Tested locally | curl: `/translate`, `/health`, `/` correct; `/docs` returned 200 (not opened in a browser by the agent); wrong body field returned 422 |
 
   ---
 
@@ -315,7 +329,8 @@
   - **All `.py`, no notebooks; no `Co-Authored-By` lines in commits** (see CLAUDE.md).
   - **Evaluation rule (set 2026-10-15): tune on the VALIDATION split, report on the test split.** From now on anything that is tuned or chosen -- beam size, alpha, repeat rules, decoding changes -- is decided on validation sentences; the test split is used only for final reported numbers. **Recorded honestly:** test sentences have already been used twice for decisions: (1) the first-200-test-sentence beam-size table in `check_beam.py` (beam 4 was chosen from it), and (2) the 40-sentence hand read. The old test scores (24.34, 30.17) are superseded (measured with German input without `<sos>/<eos>`; training used them). Any future beam 4 test number is not fully clean of test-set influence, because beam 4 was chosen using the first-200-test-sentence table.
   - **All German model input goes through `encode_source` (set 2026-10-18).** Training and every decoding script build the source with the one shared function in `src/data/dataset.py`, so the input format cannot drift apart again. Results files written with it carry `_markers`; old no-marker files are kept and never overwritten.
-  - **Serving rule (set for Phase 3):** serving must build German input with `encode_source` and clean the output with the same `clean_decode` as `evaluate.py`, and a test must check the ids match training. No such test exists yet.
+  - **Serving rule (set for Phase 3):** serving must build German input with `encode_source` and clean the output with the same `clean_decode` as `evaluate.py`, and a test must check the ids match training. Met by `src/serve.py` and `src/test_parity.py` (2026-11-25).
+  - **The API uses greedy decoding (2026-11-25, user's spec).** Beam 4 stays on hold. The boundary map is built once in `load_model()` and carried in `config["boundary_map"]`.
   - **Warmup steps: 4000 (the paper's value), not a shortened warmup, and 40 epochs.** This file previously argued 4000 was tuned for WMT-scale data and recommended ~1000 for 29k pairs; that was tried and the model **diverged**. Reverting close to the paper's original value fixed it. Recorded here so the earlier (wrong) reasoning isn't repeated: dataset size alone isn't a safe basis for cutting warmup — treat it as a value to test, not assume.
   - **BPE-rejoin: heuristic workaround, not a tokenizer retrain (decided 2026-10-03, with the user).** Direct inspection of `data/bpe_tokenizer.json` showed the vocab has no word-boundary marker on any entry, so no decoder object can correctly rejoin a generated id sequence — the information needed was discarded during tokenizer training (`BpeTrainer` with default `continuing_subword_prefix`/`end_of_word_suffix`), not missing from the decode step. The correct fix — retrain the tokenizer with a boundary marker and retrain the model against the new vocab — would invalidate `best_model.pt` (val loss 1.74) and cost a new Colab run before any BLEU number exists. Given that cost, chose instead to approximate word boundaries from training-corpus statistics (`src/data/detokenize.py`) so `evaluate.py` can produce a real, if imperfect, BLEU number now. **Validated 2026-10-04:** the heuristic's residual error (stray space before punctuation) measurably exists but does not move the BLEU score (`sacrebleu` normalizes it internally — confirmed via `analyze_outputs.py`'s before/after comparison, identical score). This lowers the urgency of a tokenizer retrain — it would improve human readability, not the evaluation metric — so it stays optional Phase 2 follow-up rather than a priority.
 
@@ -323,4 +338,4 @@
 
   ---
 
-  Last Updated: 2026-11-23
+  Last Updated: 2026-11-28
